@@ -28,9 +28,15 @@ const char *ssid = "HITSZ";
 const char *password = "";
 const char *key = "12345678";
 const size_t key_len = 8;
+const int udpPort = 3333;
+WiFiUDP udp;
+IPAddress remote_ip;
+uint16_t remote_port;
+
 void startCameraServer();
 void setupLedFlash(int pin);
-
+void udp_connect();
+void udp_vedio_tran();
 RC4 rc4; 
 
 void rc4_process(uint8_t* data, size_t len) {
@@ -96,6 +102,8 @@ void wifi_setup() {
   Serial.print("Camera Ready! Use 'http://");
   Serial.print(WiFi.localIP());
   Serial.println("' to connect");
+
+  udp.begin(WiFi.localIP(),udpPort);
 }
 
 void sd_setup()
@@ -204,11 +212,103 @@ void setup() {
 }
 
 void loop() {
-  Serial.write("hi\n");
-  delay(10000);
-  if (!has_saved) {
+  // Serial.write("hi\n");
+  static uint16_t count;
+  count = (count + 1) % 10000;
+  // 10ms
+  delay(1);
+  if (count == 9999 && !has_saved) {
+    Serial.printf("save jpg\n");
     save_jpg();
     has_saved = true;
     led_setup();
   }
+  
+  if (count % 1000 == 0) {
+    Serial.write("hi\n");
+  }
+  udp_connect();
+
+  if (count % 16 == 0) {
+    udp_vedio_tran();
+  }
+}
+
+bool mycompare(uint8_t* s1, uint8_t* s2, int len) {
+  for (int i = 0; i < len; i++) {
+    if (s1[i] != s2[i]) {
+      return false;
+    }
+      // Serial.printf("diff at %d\n", i);
+  }
+  return true;
+}
+
+void udp_connect() {
+  static char packetBuffer[100];  // buffer to hold incoming packet
+  char ReplyBuffer[] = "acknowledged";        // a string to send back
+
+  int packetSize = udp.parsePacket();
+  if (packetSize) {
+    // Serial.print("Received packet of size ");
+    // Serial.println(packetSize);
+    // Serial.print("From ");
+    // IPAddress remote = udp.remoteIP();
+    // for (int i=0; i < 4; i++) {
+    //   Serial.print(remote[i], DEC);
+    //   if (i < 3) {
+    //     Serial.print(".");
+    //   }
+    // }
+    // Serial.print(", port ");
+    // Serial.println(udp.remotePort());
+    // Serial.printf("111\n");
+    // Serial.printf(packetBuffer);
+    // read the packet into packetBufffer
+    udp.read(packetBuffer, 100);
+    // Serial.println(packetBuffer);
+    // Serial.println("Contents:");
+    // Serial.println(packetBuffer);
+    if (mycompare((uint8_t*)packetBuffer, (uint8_t*)"vedioin", 7)) {
+      // Serial.printf("recv vidio");
+      // // send a reply to the IP address and port that sent us the packet we received
+      // udp.beginPacket(udp.remoteIP(), udp.remotePort());
+      // udp.write((uint8_t*)&ReplyBuffer[0], 5);
+      // udp.endPacket();
+      remote_ip = udp.remoteIP();
+      remote_port = udp.remotePort();
+    }
+
+    if (mycompare((uint8_t*)packetBuffer, (uint8_t*)"vediostop", 9)) {
+      remote_port = 0;
+    }
+
+  }
+}
+
+void udp_vedio_tran() {
+  char ReplyBuffer[] = "acknowledged";
+  if (remote_port == 0) return;
+  camera_fb_t * fb = NULL;
+  fb = esp_camera_fb_get();  
+  if (!fb) {
+    return;
+  }
+
+  const uint16_t MAX_UDP_SIZE = 1400;
+  uint32_t number;
+  uint8_t div = '/';
+  uint16_t total_chunks = (fb->len / MAX_UDP_SIZE) + 1;
+  for (int i = 0; i < total_chunks; i++) {
+    udp.beginPacket(remote_ip, remote_port);
+    number = i;
+    udp.write((uint8_t*)&number, 4);
+    udp.write(&div, 1);
+    number = total_chunks;
+    udp.write((uint8_t*)&number, 4);
+    udp.write(fb->buf + i * MAX_UDP_SIZE, MAX_UDP_SIZE);
+    udp.endPacket();
+  }
+  Serial.printf("Total chunks: %d\n", total_chunks);
+  esp_camera_fb_return(fb);
 }
