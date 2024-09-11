@@ -105,11 +105,30 @@ void sd_setup()
   }
     
   camera_fb_t * fb = NULL;
+  size_t _jpg_buf_len = 0;
+  uint8_t *_jpg_buf = NULL;
   // Take Picture with Camera
   fb = esp_camera_fb_get();  
   if(!fb) {
     Serial.println("Camera capture failed");
     return;
+  } else {
+    if(fb->width > 400){
+      if(fb->format != PIXFORMAT_JPEG){
+        bool jpeg_converted = frame2jpg(fb, 80, &_jpg_buf, &_jpg_buf_len);
+        esp_camera_fb_return(fb);
+        fb = NULL;
+        if(!jpeg_converted){
+          Serial.println("JPEG compression failed");
+          // res = ESP_FAIL;
+        }
+      } else {
+        _jpg_buf_len = fb->len;
+        _jpg_buf = fb->buf;
+      }
+    } else {
+      Serial.println("Camera capture is jpeg");
+    }
   }
   // initialize EEPROM with predefined size
   EEPROM.begin(EEPROM_SIZE);
@@ -134,6 +153,14 @@ void sd_setup()
   file.close();
   esp_camera_fb_return(fb); 
   
+  if(fb){
+    esp_camera_fb_return(fb);
+    fb = NULL;
+    _jpg_buf = NULL;
+  } else if(_jpg_buf){
+    free(_jpg_buf);
+    _jpg_buf = NULL;
+  }
 }
 void led_setup()
 {
