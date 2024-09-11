@@ -62,6 +62,13 @@ void camera_setup() {
   config.jpeg_quality = 10;
   config.fb_count = 2;
   config.grab_mode = CAMERA_GRAB_LATEST;
+
+  // Init Camera
+  esp_err_t err = esp_camera_init(&config);
+  if (err != ESP_OK) {
+    Serial.printf("Camera init failed with error 0x%x", err);
+    return;
+  }
 }
 
 void wifi_setup() {
@@ -81,17 +88,8 @@ void wifi_setup() {
 
 void sd_setup()
 {
-  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
+  // WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
  
-
-  
-  // Init Camera
-  esp_err_t err = esp_camera_init(&config);
-  if (err != ESP_OK) {
-    Serial.printf("Camera init failed with error 0x%x", err);
-    return;
-  }
-  
   //Serial.println("Starting SD Card");
   if(!SD_MMC.begin()){
     Serial.println("SD Card Mount Failed");
@@ -139,15 +137,17 @@ void led_setup()
 {
   pinMode(4, OUTPUT);
   digitalWrite(4, LOW);
-  rtc_gpio_hold_en(GPIO_NUM_4);
+  // rtc_gpio_hold_en(GPIO_NUM_4);
 }
 
 
 void setup() {
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
   serial_setup();
   camera_setup();
-  led_setup();
   sd_setup();
+  led_setup();
+  
   wifi_setup();
 }
  
