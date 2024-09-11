@@ -24,6 +24,7 @@ int pictureNumber = 0;
 
 const char *ssid = "HITSZ";
 const char *password = "";
+const char *key = "12345678";
 
 void startCameraServer();
 void setupLedFlash(int pin);
@@ -101,14 +102,18 @@ void sd_setup()
     Serial.println("No SD Card attached");
     return;
   }
-    
+}
+
+void save_jpg() {
+     
   camera_fb_t * fb = NULL;
   size_t _jpg_buf_len = 0;
   uint8_t *_jpg_buf = NULL;
   // Take Picture with Camera
+  // delay(1000);
   fb = esp_camera_fb_get();  
   if(!fb) {
-    Serial.println("Camera capture failed");
+    Serial.printf("Camera capture failed");
     return;
   } else {
     if(fb->width > 400){
@@ -117,15 +122,18 @@ void sd_setup()
         esp_camera_fb_return(fb);
         fb = NULL;
         if(!jpeg_converted){
-          Serial.println("JPEG compression failed");
+          Serial.printf("JPEG compression failed");
           // res = ESP_FAIL;
+        } else {
+          Serial.printf("Camera compression success");
         }
       } else {
+        Serial.printf("Camera capture is jpeg\n");
         _jpg_buf_len = fb->len;
         _jpg_buf = fb->buf;
       }
     } else {
-      Serial.println("Camera capture is jpeg");
+      Serial.printf("Camera capture is too small");
     }
   }
   // initialize EEPROM with predefined size
@@ -160,6 +168,7 @@ void sd_setup()
     _jpg_buf = NULL;
   }
 }
+
 void led_setup()
 {
   pinMode(4, OUTPUT);
@@ -167,18 +176,24 @@ void led_setup()
   // rtc_gpio_hold_en(GPIO_NUM_4);
 }
 
-
+bool has_saved = false;
 void setup() {
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
   serial_setup();
   camera_setup();
   sd_setup();
-  led_setup();
+  // led_setup();
   
   wifi_setup();
+  has_saved = false;
 }
- 
+
 void loop() {
   Serial.write("hi\n");
-  delay(1000);
+  delay(10000);
+  if (!has_saved) {
+    save_jpg();
+    has_saved = true;
+    led_setup();
+  }
 }
