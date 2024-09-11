@@ -1,4 +1,5 @@
-#include <vector>
+// #include <vector>
+#pragma once
 #include <array>
 #include <cstdint>
 #include <algorithm>
@@ -7,8 +8,8 @@ class RC4 {
     
     public:
         explicit RC4(void) {};
-        void reset(const std::vector<uint8_t> &key, size_t len);
-        void crypt(const std::vector<uint8_t> &in, std::vector<uint8_t> &out, size_t len);
+        void reset(const uint8_t* key, size_t len);
+        void crypt(const uint8_t* in, uint8_t* out, size_t len);
         ~RC4(void) {};
 
     private:
@@ -21,7 +22,7 @@ class RC4 {
         const RC4&& operator=(const RC4&&) = delete;
 };
 
-void RC4::reset(const std::vector<uint8_t> &key, size_t len) {
+inline void RC4::reset(const uint8_t* key, size_t len) {
     uint8_t j = 0;
 
     for (auto i = 0; i < sbox.size(); i++)
@@ -34,7 +35,7 @@ void RC4::reset(const std::vector<uint8_t> &key, size_t len) {
     }
 }
 
-void RC4::crypt(const std::vector<uint8_t> &in, std::vector<uint8_t> &out, size_t len) {
+inline void RC4::crypt(const uint8_t* in, uint8_t* out, size_t len) {
     uint8_t j = 0;
 
     for (auto i = 0; i < len; i++) {

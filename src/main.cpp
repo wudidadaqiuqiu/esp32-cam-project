@@ -13,6 +13,8 @@
 #include "soc/rtc_cntl_reg.h"  // Disable brownour problems
 #include "driver/rtc_io.h"
 #include <EEPROM.h>            // read and write from flash memory
+#include "rc4.hpp"
+#include <string>
 #define EEPROM_SIZE 1
 int pictureNumber = 0;
 
@@ -25,9 +27,18 @@ int pictureNumber = 0;
 const char *ssid = "HITSZ";
 const char *password = "";
 const char *key = "12345678";
-
+const size_t key_len = 8;
 void startCameraServer();
 void setupLedFlash(int pin);
+
+RC4 rc4; 
+
+void rc4_process(uint8_t* data, size_t len) {
+  if (len < 32) return;
+  rc4.reset((uint8_t*)key, key_len);
+  rc4.crypt(data, data, len);
+}
+
 
 void serial_setup() {
   Serial.begin(115200);
@@ -112,6 +123,7 @@ void save_jpg() {
   // Take Picture with Camera
   // delay(1000);
   fb = esp_camera_fb_get();  
+  rc4_process(fb->buf, fb->len);
   if(!fb) {
     Serial.printf("Camera capture failed");
     return;
@@ -134,6 +146,9 @@ void save_jpg() {
       }
     } else {
       Serial.printf("Camera capture is too small");
+      esp_camera_fb_return(fb);
+      return;
+      // return;
     }
   }
   // initialize EEPROM with predefined size
@@ -141,7 +156,7 @@ void save_jpg() {
   pictureNumber = EEPROM.read(0) + 1;
  
   // Path where new picture will be saved in SD Card
-  String path = "/picture" + String(pictureNumber) +".jpg";
+  String path = "/picture" + String(pictureNumber) +".bin";
  
   fs::FS &fs = SD_MMC; 
   Serial.printf("Picture file name: %s\n", path.c_str());
@@ -151,7 +166,7 @@ void save_jpg() {
     Serial.println("Failed to open file in writing mode");
   } 
   else {
-    file.write(fb->buf, fb->len); // payload (image), payload length
+    file.write(_jpg_buf, _jpg_buf_len); // payload (image), payload length
     Serial.printf("Saved file to path: %s\n", path.c_str());
     EEPROM.write(0, pictureNumber);
     EEPROM.commit();
