@@ -8,9 +8,9 @@ import queue
 def udp_send(sock: socket.socket, server_address):
     while True:
         message = "vedioin".encode()
-        print("message:", message)
-        print("server_address: ", server_address)
-        print("sock: ", sock)
+        # print("message:", message)
+        # print("server_address: ", server_address)
+        # print("sock: ", sock)
         sock.sendto(message, server_address)
         
         time.sleep(1)
@@ -18,6 +18,7 @@ def udp_send(sock: socket.socket, server_address):
 q = queue.Queue()
 recv_buffer, numdiv = [], [0, 0]
 recv_buffer2 = b''
+recv_queue = queue.Queue()
 def reset_buf(data):
     global recv_buffer, numdiv
     numdiv[0] = int.from_bytes(data[0:4], byteorder='little')
@@ -27,7 +28,8 @@ def reset_buf(data):
     # print(recv_buffer)
 
 def udp_receive2(sock):
-    global recv_buffer2
+    split_buffer = b''
+    global recv_buffer2, recv_queue
     while True:
         print("wait for connection")
         connection, client_address = sock.accept()
@@ -40,18 +42,40 @@ def udp_receive2(sock):
     # connection, client_address = sock.accept()
     try:
         while True:
+            # has_div = False
             data = connection.recv(4096)
             if not data: 
                 continue
             assert(type(data) == bytes)
+            # if len(t:=data.split(b'||||||||||')) == 1:
+                
             recv_buffer2 += data
-            if (data[-10:] == b'||||||||||' and data[-24:-14] == b'||||||||||'):
-                if (int.from_bytes(data[-14:-10], byteorder='little') == len(recv_buffer2)-24):
-                    q.put([recv_buffer2[:-24]])
-                    print("recv_buffer2 len: " + str(len(recv_buffer2)))
+            temp = recv_buffer2.split(b'||||||||||')
+            for i in range(len(temp)):
+                if (i == len(temp) - 1):
+                    recv_buffer2 = temp[i]
+                    break
+                if i != b'':
+                    recv_queue.put(temp[i])
+            while not recv_queue.empty() and recv_queue.qsize() % 2 == 0:
+                f = recv_queue.get()
+                l = recv_queue.get()
+                # print(l)
+                # print(len(l), len(f))
+                if int.from_bytes(l, byteorder='little') == len(f):
+                    q.put([f])
+                    print("f len: " + str(len(f)))
                 else:
-                    print(int.from_bytes(data[-14:-10], byteorder='little'), len(recv_buffer2)-24)
+                    print("f len: " + str(len(f)) + "  len: " + str(int.from_bytes(l, byteorder='little')))
                     print("data length error")
+                    
+            # if (data[-10:] == b'||||||||||' and data[-24:-14] == b'||||||||||'):
+            #     if (int.from_bytes(data[-14:-10], byteorder='little') == len(recv_buffer2)-24):
+            #         q.put([recv_buffer2[:-24]])
+            #         print("recv_buffer2 len: " + str(len(recv_buffer2)))
+            #     else:
+            #         print(int.from_bytes(data[-14:-10], byteorder='little'), len(recv_buffer2)-24)
+            #         print("data length error")
 
                 recv_buffer2 = b''
     finally:
@@ -141,11 +165,11 @@ server_address = ('10.250.243.217', 3333)
 # 创建发送和接收的线程
 send_thread = threading.Thread(target=udp_send, args=(udp_socket, server_address))
 receive_thread = threading.Thread(target=udp_receive2, args=(udp_socket2,))
-# process_thread = threading.Thread(target=recv_process)
+process_thread = threading.Thread(target=recv_process)
 # 启动线程
 send_thread.start()
 receive_thread.start()
-# process_thread.start()
+process_thread.start()
 
 try:
     # 等待线程结束
@@ -156,4 +180,4 @@ finally:
     udp_socket.close()
     udp_socket2.close()
     # process_thread.join()
-# process_thread.join()
+process_thread.join()

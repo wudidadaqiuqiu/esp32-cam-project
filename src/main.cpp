@@ -301,7 +301,7 @@ void udp_vedio_tran() {
 
   // if (remote_port == 0) return;
   if (!client.connected()) {
-    client.connect(serverIP, 3334, 9);
+    client.connect(serverIP, 3334, 50);
     
     Serial.printf("not connected\n");
     return;
@@ -347,7 +347,7 @@ void task2(void *pvParameters) {
   while(1) {
     // Serial.println("Task 1 is running");
     udp_vedio_tran();
-    vTaskDelay(50);
+    // vTaskDelay(50);
     
   }
 }
