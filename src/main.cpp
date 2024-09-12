@@ -29,7 +29,8 @@ const char *password = "";
 const char *key = "12345678";
 const size_t key_len = 8;
 const int udpPort = 3333;
-WiFiUDP udp;
+WiFiUDP udp; 
+WiFiClient client;
 IPAddress remote_ip;
 uint16_t remote_port;
 
@@ -37,6 +38,8 @@ void startCameraServer();
 void setupLedFlash(int pin);
 void udp_connect();
 void udp_vedio_tran();
+void task1(void *pvParameters);
+void task2(void *pvParameters);
 RC4 rc4; 
 
 void rc4_process(uint8_t* data, size_t len) {
@@ -209,29 +212,34 @@ void setup() {
   
   wifi_setup();
   has_saved = false;
+
+  xTaskCreate(task1, "Task 1", 9200, NULL, 2, NULL);
+  xTaskCreate(task2, "Task 1", 4096, NULL, 1, NULL);
+  vTaskStartScheduler();
 }
 
 void loop() {
-  // Serial.write("hi\n");
-  static uint16_t count;
-  count = (count + 1) % 10000;
-  // 10ms
   delay(1);
-  if (count == 9999 && !has_saved) {
-    Serial.printf("save jpg\n");
-    save_jpg();
-    has_saved = true;
-    led_setup();
-  }
+  // Serial.write("hi\n");
+  // static uint16_t count;
+  // count = (count + 1) % 10000;
+  // // 1ms
+  // delay(1);
+  // if (count == 9999 && !has_saved) {
+  //   Serial.printf("save jpg\n");
+  //   save_jpg();
+  //   has_saved = true;
+  //   led_setup();
+  // }
   
-  if (count % 1000 == 0) {
-    Serial.write("hi\n");
-  }
-  udp_connect();
+  // if (count % 1000 == 0) {
+  //   Serial.write("hi\n");
+  // }
+  // udp_connect();
 
-  if (count % 16 == 0) {
-    udp_vedio_tran();
-  }
+  // if (count % 16 == 0) {
+  //   udp_vedio_tran();
+  // }
 }
 
 bool mycompare(uint8_t* s1, uint8_t* s2, int len) {
@@ -270,13 +278,14 @@ void udp_connect() {
     // Serial.println("Contents:");
     // Serial.println(packetBuffer);
     if (mycompare((uint8_t*)packetBuffer, (uint8_t*)"vedioin", 7)) {
-      // Serial.printf("recv vidio");
+      Serial.printf("recv vedioin");
       // // send a reply to the IP address and port that sent us the packet we received
       // udp.beginPacket(udp.remoteIP(), udp.remotePort());
       // udp.write((uint8_t*)&ReplyBuffer[0], 5);
       // udp.endPacket();
       remote_ip = udp.remoteIP();
       remote_port = udp.remotePort();
+      
     }
 
     if (mycompare((uint8_t*)packetBuffer, (uint8_t*)"vediostop", 9)) {
@@ -311,4 +320,40 @@ void udp_vedio_tran() {
   }
   Serial.printf("Total chunks: %d\n", total_chunks);
   esp_camera_fb_return(fb);
+}
+
+void task2(void *pvParameters) {
+  while(1) {
+    // Serial.println("Task 1 is running");
+    udp_vedio_tran();
+    vTaskDelay(10);
+    
+  }
+}
+
+
+
+void task1(void *pvParameters) {
+  while(1) {
+    static uint16_t count;
+    count = (count + 1) % 10000;
+    // 1ms
+    if (count == 9999 && !has_saved) {
+      Serial.printf("save jpg\n");
+      save_jpg();
+      has_saved = true;
+      led_setup();
+    }
+    
+    if (count % 1000 == 0) {
+      Serial.write("hi\n");
+    }
+    udp_connect();
+
+    // if (count % 16 == 0) {
+    //   udp_vedio_tran();
+    // }
+    vTaskDelay(1);
+    
+  }
 }
