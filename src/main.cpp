@@ -29,6 +29,7 @@ const char *password = "";
 const char *key = "12345678";
 const size_t key_len = 8;
 const int udpPort = 3333;
+IPAddress serverIP(10, 250, 145, 73);
 WiFiUDP udp; 
 WiFiClient client;
 IPAddress remote_ip;
@@ -213,8 +214,8 @@ void setup() {
   wifi_setup();
   has_saved = false;
 
-  xTaskCreate(task1, "Task 1", 9200, NULL, 2, NULL);
-  xTaskCreate(task2, "Task 1", 4096, NULL, 1, NULL);
+  xTaskCreate(task1, "Task 1", 9200, NULL, 1, NULL);
+  xTaskCreate(task2, "Task 1", 4096, NULL, 2, NULL);
   vTaskStartScheduler();
 }
 
@@ -285,7 +286,7 @@ void udp_connect() {
       // udp.endPacket();
       remote_ip = udp.remoteIP();
       remote_port = udp.remotePort();
-      
+      // client.connect(remote_ip, remote_port+1);
     }
 
     if (mycompare((uint8_t*)packetBuffer, (uint8_t*)"vediostop", 9)) {
@@ -297,7 +298,15 @@ void udp_connect() {
 
 void udp_vedio_tran() {
   char ReplyBuffer[] = "acknowledged";
-  if (remote_port == 0) return;
+
+  // if (remote_port == 0) return;
+  if (!client.connected()) {
+    client.connect(serverIP, 3334, 9);
+    
+    Serial.printf("not connected\n");
+    return;
+  };
+  Serial.printf("connected\n");
   camera_fb_t * fb = NULL;
   fb = esp_camera_fb_get();  
   if (!fb) {
@@ -308,16 +317,28 @@ void udp_vedio_tran() {
   uint32_t number;
   uint8_t div = '/';
   uint16_t total_chunks = (fb->len / MAX_UDP_SIZE) + 1;
-  for (int i = 0; i < total_chunks; i++) {
-    udp.beginPacket(remote_ip, remote_port);
-    number = i;
-    udp.write((uint8_t*)&number, 4);
-    udp.write(&div, 1);
-    number = total_chunks;
-    udp.write((uint8_t*)&number, 4);
-    udp.write(fb->buf + i * MAX_UDP_SIZE, MAX_UDP_SIZE);
-    udp.endPacket();
-  }
+  // client.write()
+  // for (int i = 0; i < total_chunks; i++) {
+    
+  //   // udp.beginPacket(remote_ip, remote_port);
+  //   // number = i;
+  //   // client.write((uint8_t*)&number, 4);
+  //   // udp.write(&div, 1);
+  //   // number = total_chunks;
+  //   // udp.write((uint8_t*)&number, 4);
+  //   // client.write(fb->buf + i * MAX_UDP_SIZE, MAX_UDP_SIZE);
+  //   // udp.endPacket();
+  // }
+  client.write(fb->buf, fb->len);
+  number = fb->len;
+  client.write((uint8_t*)"||||||||||", 10);
+  client.write((uint8_t*)&number, 4);
+  client.write((uint8_t*)"||||||||||", 10);
+  // udp.beginPacket(remote_ip, remote_port);
+  // udp.write((uint8_t*)"end jpg:", 8);
+  // udp.write((uint8_t*)&number, 4);
+
+  // udp.endPacket();
   Serial.printf("Total chunks: %d\n", total_chunks);
   esp_camera_fb_return(fb);
 }
@@ -326,7 +347,7 @@ void task2(void *pvParameters) {
   while(1) {
     // Serial.println("Task 1 is running");
     udp_vedio_tran();
-    vTaskDelay(10);
+    vTaskDelay(50);
     
   }
 }
@@ -348,7 +369,7 @@ void task1(void *pvParameters) {
     if (count % 1000 == 0) {
       Serial.write("hi\n");
     }
-    udp_connect();
+    // udp_connect();
 
     // if (count % 16 == 0) {
     //   udp_vedio_tran();
