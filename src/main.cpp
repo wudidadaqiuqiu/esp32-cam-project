@@ -329,6 +329,7 @@ void udp_vedio_tran() {
   //   // client.write(fb->buf + i * MAX_UDP_SIZE, MAX_UDP_SIZE);
   //   // udp.endPacket();
   // }
+  rc4_process(fb->buf, fb->len);
   client.write(fb->buf, fb->len);
   number = fb->len;
   client.write((uint8_t*)"||||||||||", 10);
