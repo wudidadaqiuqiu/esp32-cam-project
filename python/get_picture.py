@@ -1,7 +1,7 @@
 import socket
 import threading
 import time
-import cv2
+# import cv2
 import numpy as np
 import queue
 
@@ -79,7 +79,7 @@ def get_byte(recv_buffer: list[list[bytes]]):
         b += a
     return r.crypt(b), b
 
-
-get_pic(udp_socket2)
-recv_process()
-udp_socket2.close()
+if __name__ == "__main__":
+    get_pic(udp_socket2)
+    recv_process()
+    udp_socket2.close()

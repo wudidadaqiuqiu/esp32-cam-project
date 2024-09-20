@@ -24,12 +24,12 @@ int pictureNumber = 0;
 // const char *ssid = "mys24";
 // const char *password = "20050602";
 
-const char *ssid = "HITSZ";
-const char *password = "";
+const char *ssid = "linux";
+const char *password = "12345678";
 const char *key = "12345678";
 const size_t key_len = 8;
-const int udpPort = 3333;
-IPAddress serverIP(10, 250, 145, 73);
+const int udpPort = 3336;
+IPAddress serverIP(192, 168, 248, 29);
 WiFiUDP udp; 
 WiFiClient client;
 IPAddress remote_ip;
@@ -42,6 +42,8 @@ void udp_vedio_tran();
 void task1(void *pvParameters);
 void task2(void *pvParameters);
 RC4 rc4; 
+
+const int gpio_ = 14;
 
 void rc4_process(uint8_t* data, size_t len) {
   if (len < 32) return;
@@ -107,7 +109,7 @@ void wifi_setup() {
   Serial.print(WiFi.localIP());
   Serial.println("' to connect");
 
-  udp.begin(WiFi.localIP(),udpPort);
+  // udp.begin(WiFi.localIP(),udpPort);
 }
 
 void sd_setup()
@@ -214,6 +216,8 @@ void setup() {
   wifi_setup();
   has_saved = false;
 
+  pinMode(gpio_, INPUT);
+
   xTaskCreate(task1, "Task 1", 9200, NULL, 1, NULL);
   xTaskCreate(task2, "Task 1", 4096, NULL, 2, NULL);
   vTaskStartScheduler();
@@ -301,10 +305,10 @@ void udp_vedio_tran() {
 
   // if (remote_port == 0) return;
   if (!client.connected()) {
-    client.connect(serverIP, 3334, 50);
-    
-    Serial.printf("not connected\n");
-    return;
+    while(!client.connect(serverIP, 3336, 1000)) {
+      Serial.println("not connected");
+    }
+    // return;
   };
   Serial.printf("connected\n");
   camera_fb_t * fb = NULL;
@@ -347,8 +351,14 @@ void udp_vedio_tran() {
 void task2(void *pvParameters) {
   while(1) {
     // Serial.println("Task 1 is running");
-    udp_vedio_tran();
-    // vTaskDelay(50);
+    int level = digitalRead(gpio_);
+    static int last_level;
+    if (last_level != level) {
+      udp_vedio_tran();
+    }
+    last_level = level;
+    // Serial.println("task2");
+    vTaskDelay(50);
     
   }
 }
