@@ -24,8 +24,8 @@ int pictureNumber = 0;
 // const char *ssid = "mys24";
 // const char *password = "20050602";
 
-const char *ssid = "linux";
-const char *password = "12345678";
+const char *ssid = "HITSZ";
+const char *password = "";
 const char *key = "12345678";
 const size_t key_len = 8;
 const int udpPort = 3336;
@@ -354,7 +354,7 @@ void task2(void *pvParameters) {
     int level = digitalRead(gpio_);
     static int last_level;
     if (last_level != level) {
-      udp_vedio_tran();
+      // udp_vedio_tran();
     }
     last_level = level;
     // Serial.println("task2");
