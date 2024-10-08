@@ -16,6 +16,8 @@
 #include "rc4.hpp"
 #include <string>
 #define EEPROM_SIZE 1
+
+#define DEBOUNCE_DELAY 50  // 消抖延迟，单位为毫秒
 int pictureNumber = 0;
 
 // ===========================
@@ -24,12 +26,12 @@ int pictureNumber = 0;
 // const char *ssid = "mys24";
 // const char *password = "20050602";
 
-const char *ssid = "HITSZ";
-const char *password = "";
+const char *ssid = "linux";
+const char *password = "12345678";
 const char *key = "12345678";
 const size_t key_len = 8;
 const int udpPort = 3336;
-IPAddress serverIP(192, 168, 248, 29);
+IPAddress serverIP(192, 168, 27, 29);
 WiFiUDP udp; 
 WiFiClient client;
 IPAddress remote_ip;
@@ -42,8 +44,9 @@ void udp_vedio_tran();
 void task1(void *pvParameters);
 void task2(void *pvParameters);
 RC4 rc4; 
+int is_button_toogle(int gp);
 
-const int gpio_ = 14;
+const int gpio_ = 3;
 
 void rc4_process(uint8_t* data, size_t len) {
   if (len < 32) return;
@@ -137,7 +140,6 @@ void save_jpg() {
   // Take Picture with Camera
   // delay(1000);
   fb = esp_camera_fb_get();  
-  rc4_process(fb->buf, fb->len);
   if(!fb) {
     Serial.printf("Camera capture failed");
     return;
@@ -160,9 +162,6 @@ void save_jpg() {
       }
     } else {
       Serial.printf("Camera capture is too small");
-      esp_camera_fb_return(fb);
-      return;
-      // return;
     }
   }
   // initialize EEPROM with predefined size
@@ -170,7 +169,7 @@ void save_jpg() {
   pictureNumber = EEPROM.read(0) + 1;
  
   // Path where new picture will be saved in SD Card
-  String path = "/picture" + String(pictureNumber) +".bin";
+  String path = "/picture" + String(pictureNumber) +".jpg";
  
   fs::FS &fs = SD_MMC; 
   Serial.printf("Picture file name: %s\n", path.c_str());
@@ -180,7 +179,7 @@ void save_jpg() {
     Serial.println("Failed to open file in writing mode");
   } 
   else {
-    file.write(_jpg_buf, _jpg_buf_len); // payload (image), payload length
+    file.write(fb->buf, fb->len); // payload (image), payload length
     Serial.printf("Saved file to path: %s\n", path.c_str());
     EEPROM.write(0, pictureNumber);
     EEPROM.commit();
@@ -216,7 +215,7 @@ void setup() {
   wifi_setup();
   has_saved = false;
 
-  pinMode(gpio_, INPUT);
+  pinMode(gpio_, INPUT_PULLUP);
 
   xTaskCreate(task1, "Task 1", 9200, NULL, 1, NULL);
   xTaskCreate(task2, "Task 1", 4096, NULL, 2, NULL);
@@ -302,11 +301,16 @@ void udp_connect() {
 
 void udp_vedio_tran() {
   char ReplyBuffer[] = "acknowledged";
-
+  static int cnt;
+  cnt = 0;
   // if (remote_port == 0) return;
   if (!client.connected()) {
-    while(!client.connect(serverIP, 3336, 1000)) {
+    while(!client.connect(serverIP, 3336, 50)) {
+      cnt++;
       Serial.println("not connected");
+      if (cnt > 10) {
+        return;
+      }
     }
     // return;
   };
@@ -348,15 +352,19 @@ void udp_vedio_tran() {
   esp_camera_fb_return(fb);
 }
 
+int level = 0;
 void task2(void *pvParameters) {
   while(1) {
     // Serial.println("Task 1 is running");
-    int level = digitalRead(gpio_);
-    static int last_level;
-    if (last_level != level) {
-      // udp_vedio_tran();
+    // int level = digitalRead(gpio_);
+    // static int last_level;
+    if (level) {
+      udp_vedio_tran();
+      Serial.println("key trigger save jpg");
+      save_jpg();
+      level = 0;
     }
-    last_level = level;
+    // last_level = level;
     // Serial.println("task2");
     vTaskDelay(50);
     
@@ -374,11 +382,15 @@ void task1(void *pvParameters) {
       Serial.printf("save jpg\n");
       save_jpg();
       has_saved = true;
-      led_setup();
+      // led_setup();
     }
     
     if (count % 1000 == 0) {
       Serial.write("hi\n");
+    }
+
+    if (is_button_toogle(gpio_) && digitalRead(gpio_) == 0) {
+      level = 1;
     }
     // udp_connect();
 
@@ -388,4 +400,66 @@ void task1(void *pvParameters) {
     vTaskDelay(1);
     
   }
+}
+
+
+// 模拟硬件相关的读取按键状态
+int read_button(int gp) {
+  // // 这里应该调用硬件读取函数，例如读取GPIO状态
+  // // 返回1表示按键按下，返回0表示按键释放
+  // return 0;  // 示例代码，实际应该与硬件接口相关联
+  return digitalRead(gp);
+}
+
+
+
+// 按键消抖函数，返回按键的稳态值
+int debounce_button(int gp) {
+    static int button_state = 0;           // 按键当前状态
+    static int last_button_state = 0;      // 上一次的按键状态
+    static uint32_t last_debounce_time = 0;  // 上一次消抖时间
+
+    int reading = read_button(gp);
+
+    if (reading != last_button_state) {
+        last_debounce_time = millis();  // 状态变化时，重置计时器
+    }
+
+    if ((millis() - last_debounce_time) > DEBOUNCE_DELAY) {
+        // 只有当状态稳定持续超过消抖延时时，更新按键状态
+        if (reading != button_state) {
+            button_state = reading;
+        }
+    }
+
+    last_button_state = reading;
+
+    return button_state;
+}
+
+
+// 按键消抖函数，返回按键的稳态值
+int is_button_toogle(int gp) {
+    static int button_state = 0;           // 按键当前状态
+    static int last_button_state = 0;      // 上一次的按键状态
+    static uint32_t last_debounce_time = 0;  // 上一次消抖时间
+
+    int reading = read_button(gp);
+
+    if (reading != last_button_state) {
+        last_debounce_time = millis();  // 状态变化时，重置计时器
+    }
+
+    if ((millis() - last_debounce_time) > DEBOUNCE_DELAY) {
+        // 只有当状态稳定持续超过消抖延时时，更新按键状态
+        if (reading != button_state) {
+            button_state = reading;
+            last_button_state = reading;
+            return 1;
+        }
+    }
+
+    last_button_state = reading;
+
+    return 0;
 }
